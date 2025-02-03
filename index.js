@@ -44,6 +44,19 @@ app.get("/api/sensor-data", async (req, res) => {
   }
 });
 
+// API to Fetch Latest Soil Moisture Data
+app.get("/api/latest-sensor-data", async (req, res) => {
+  try {
+    const latestData = await SensorData.findOne().sort({ _id: -1 }); // Get the latest entry
+    if (!latestData) {
+      return res.status(404).json({ error: "No data found" });
+    }
+    res.status(200).json(latestData);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch latest data" });
+  }
+});
+
 // Start Server
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
