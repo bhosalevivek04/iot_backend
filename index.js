@@ -50,7 +50,7 @@ app.get("/api/sensor-data", async (req, res) => {
 // API to Fetch Latest Soil Moisture Data
 app.get('/api/sensor-data/latest', async (req, res) => {
   try {
-    const latestData = await SensorData.findOne().sort({ createdAt: -1 }); // Fetch the most recent entry
+    const latestData = await SensorData.findOne().sort({ _id: -1 }); // Sort by _id to ensure the latest entry
     if (!latestData) {
       return res.status(404).json({ error: "No sensor data found" });
     }
