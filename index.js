@@ -18,9 +18,12 @@ mongoose
   .catch((error) => console.error("Error connecting to MongoDB:", error));
 
 // Sensor Schema (Removed timestamp field)
-const sensorSchema = new mongoose.Schema({
-  sensorValue: Number,
-});
+const sensorSchema = new mongoose.Schema(
+  {
+    sensorValue: Number,
+  },
+  { timestamps: true } // Adds createdAt & updatedAt fields automatically
+);
 const SensorData = mongoose.model("SensorData", sensorSchema);
 
 // API to Save Sensor Data
@@ -46,8 +49,15 @@ app.get("/api/sensor-data", async (req, res) => {
 
 // API to Fetch Latest Soil Moisture Data
 app.get('/api/sensor-data/latest', async (req, res) => {
-  const latestData = await SensorData.findOne().sort({ createdAt: -1 });
-  res.json(latestData);
+  try {
+    const latestData = await SensorData.findOne().sort({ createdAt: -1 }); // Fetch the most recent entry
+    if (!latestData) {
+      return res.status(404).json({ error: "No sensor data found" });
+    }
+    res.status(200).json(latestData);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch latest data" });
+  }
 });
 
 // Start Server
