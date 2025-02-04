@@ -19,7 +19,7 @@ mongoose
 // Sensor Schema now includes soil moisture, temperature, and humidity
 const sensorSchema = new mongoose.Schema(
   {
-    sensorValue: { type: Number },   // Soil Moisture
+    soilmoisture: { type: Number },   // Soil Moisture
     temperature: { type: Number },
     humidity: { type: Number },
   },
@@ -31,7 +31,7 @@ const SensorData = mongoose.model("SensorData", sensorSchema);
 // ------------------------------------------------------
 // API to Save Sensor Data
 // Expects a JSON payload like:
-// { "sensorValue": 45, "temperature": 25.3, "humidity": 60.5 }
+// { "soilmoisture": 45, "temperature": 25.3, "humidity": 60.5 }
 app.post("/api/sensor-data", async (req, res) => {
   try {
     const data = new SensorData(req.body);
@@ -71,8 +71,8 @@ app.get("/api/sensor-data/latest", async (req, res) => {
 // API to Fetch Only Soil Moisture Data
 app.get("/api/sensor-data/soilmoisture", async (req, res) => {
   try {
-    // Return only sensorValue and createdAt fields (adjust projection as needed)
-    const data = await SensorData.find({}, { sensorValue: 1, createdAt: 1, _id: 0 });
+    // Return only soilmoisture and createdAt fields (adjust projection as needed)
+    const data = await SensorData.find({}, { soilmoisture: 1, createdAt: 1, _id: 0 });
     res.status(200).json(data);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch soil moisture data" });
