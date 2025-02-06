@@ -33,12 +33,22 @@ const sensorSchema = new mongoose.Schema(
 const SensorData = mongoose.model("SensorData", sensorSchema);
 
 // ------------------------------------------------------
+// Threshold Schema & Model
+// ------------------------------------------------------
+const thresholdSchema = new mongoose.Schema({
+  soilThreshold: { type: Number, required: true },
+  tempThreshold: { type: Number, required: true },
+  humThreshold: { type: Number, required: true },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const Threshold = mongoose.model("Threshold", thresholdSchema);
+
+// ------------------------------------------------------
 // GENERAL ENDPOINTS
 // ------------------------------------------------------
 
 // Save Sensor Data
-// Expects payload: { "soilmoisture": 45, "temperature": 25.3, "humidity": 60.5 }
-// Save Sensor Data with backend filtering based on major change
 // Expects payload: { "soilmoisture": 45, "temperature": 25.3, "humidity": 60.5 }
 app.post("/api/sensor-data", async (req, res) => {
   try {
@@ -49,8 +59,8 @@ app.post("/api/sensor-data", async (req, res) => {
     
     // Define thresholds (these can be adjusted as needed)
     const soilThreshold = 15;      // e.g., 15% change in soil moisture
-    const tempThreshold = 5.0;    // e.g., 5°C change in temperature
-    const humThreshold = 10.0;     // e.g., 10% change in humidity
+    const tempThreshold = 5.0;       // e.g., 5°C change in temperature
+    const humThreshold = 10.0;       // e.g., 10% change in humidity
 
     // Flag to decide whether the change is significant
     let significantChange = false;
@@ -83,7 +93,6 @@ app.post("/api/sensor-data", async (req, res) => {
   }
 });
 
-
 // Fetch all sensor data
 app.get("/api/sensor-data", async (req, res) => {
   try {
@@ -95,7 +104,6 @@ app.get("/api/sensor-data", async (req, res) => {
 });
 
 // Fetch Latest Sensor Data Entry (returns only soilmoisture and createdAt)
-// NOTE: This endpoint is used in another project so do not modify it.
 app.get("/api/sensor-data/latest", async (req, res) => {
   try {
     const latestData = await SensorData.findOne({}, { soilmoisture: 1, createdAt: 1, _id: 0 }).sort({ _id: -1 });
@@ -311,7 +319,7 @@ app.get("/api/sensor-data/humidity/year", async (req, res) => {
 
 // ------------------------------------------------------
 // NEW: Month Breakdown Endpoints (Grouped by Week) for Soil Moisture
-// (You can create similar endpoints for temperature and humidity if desired.)
+// ------------------------------------------------------
 app.get("/api/sensor-data/soilmoisture/month/week1", async (req, res) => {
   try {
     const now = new Date();
@@ -437,6 +445,57 @@ app.get("/api/sensor-data/humidity/year/:month", async (req, res) => {
     res.status(200).json(data);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch yearly humidity data" });
+  }
+});
+
+// ------------------------------------------------------
+// NEW: Threshold Settings Endpoints
+// ------------------------------------------------------
+
+// POST endpoint to set/update threshold settings remotely.
+// Expects payload: { "soilThreshold": 15, "tempThreshold": 5.0, "humThreshold": 10.0 }
+app.post("/api/threshold", async (req, res) => {
+  try {
+    const { soilThreshold, tempThreshold, humThreshold } = req.body;
+    if (
+      soilThreshold === undefined ||
+      tempThreshold === undefined ||
+      humThreshold === undefined
+    ) {
+      return res.status(400).json({ error: "Missing threshold values" });
+    }
+    // Assume only one document exists. Find and update, or create if none exists.
+    let thresholdDoc = await Threshold.findOne({});
+    if (!thresholdDoc) {
+      thresholdDoc = new Threshold({ soilThreshold, tempThreshold, humThreshold });
+    } else {
+      thresholdDoc.soilThreshold = soilThreshold;
+      thresholdDoc.tempThreshold = tempThreshold;
+      thresholdDoc.humThreshold = humThreshold;
+      thresholdDoc.updatedAt = new Date();
+    }
+    await thresholdDoc.save();
+    res.status(200).json({
+      message: "Threshold settings updated successfully",
+      threshold: thresholdDoc,
+    });
+  } catch (error) {
+    console.error("Error updating threshold settings:", error);
+    res.status(500).json({ error: "Failed to update threshold settings" });
+  }
+});
+
+// GET endpoint to retrieve the current threshold settings.
+app.get("/api/threshold", async (req, res) => {
+  try {
+    let thresholdDoc = await Threshold.findOne({});
+    if (!thresholdDoc) {
+      return res.status(404).json({ error: "Threshold settings not found" });
+    }
+    res.status(200).json(thresholdDoc);
+  } catch (error) {
+    console.error("Error fetching threshold settings:", error);
+    res.status(500).json({ error: "Failed to fetch threshold settings" });
   }
 });
 
