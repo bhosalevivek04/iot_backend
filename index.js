@@ -58,9 +58,9 @@ app.post("/api/sensor-data", async (req, res) => {
     const lastData = await SensorData.findOne({}, {}, { sort: { createdAt: -1 } });
     
     // Define thresholds (these can be adjusted as needed)
-    const soilThreshold = 15;      // e.g., 15% change in soil moisture
-    const tempThreshold = 5.0;       // e.g., 5°C change in temperature
-    const humThreshold = 10.0;       // e.g., 10% change in humidity
+    const soilThreshold = 0;      // e.g., 0% change in soil moisture
+    const tempThreshold = 0.0;       // e.g., 0°C change in temperature
+    const humThreshold = 0.0;       // e.g., 0% change in humidity
 
     // Flag to decide whether the change is significant
     let significantChange = false;
@@ -103,13 +103,15 @@ app.get("/api/sensor-data", async (req, res) => {
   }
 });
 
-// Fetch Latest Sensor Data Entry (returns only soilmoisture and createdAt)
+// Fetch Latest Sensor Data Entry (returns all latest fields)
 app.get("/api/sensor-data/latest", async (req, res) => {
   try {
-    const latestData = await SensorData.findOne({}, { soilmoisture: 1, createdAt: 1, _id: 0 }).sort({ _id: -1 });
+    const latestData = await SensorData.findOne({}, { _id: 0 }).sort({ createdAt: -1 });
+
     if (!latestData) {
       return res.status(404).json({ error: "No sensor data found" });
     }
+
     res.status(200).json(latestData);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch latest data" });
