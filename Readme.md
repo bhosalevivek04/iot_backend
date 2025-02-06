@@ -39,7 +39,16 @@ This project is a Node.js backend application that provides an API for managing 
 ### Month Breakdown Endpoints
 
 - **GET** `/api/sensor-data/soilmoisture/month/week1`: Fetch week 1 soil moisture data for the current month.
-- **GET** `/api/sensor-data/soilmoisture/year/:month`: Fetch yearly soil moisture data for a specific month.
+- **GET** `/api/sensor-data/soilmoisture/month/week2`: Fetch week 2 soil moisture data for the current month.
+- **GET** `/api/sensor-data/soilmoisture/month/week3`: Fetch week 3 soil moisture data for the current month.
+- **GET** `/api/sensor-data/soilmoisture/month/week4`: Fetch week 4 soil moisture data for the current month.
+- **GET** `/api/sensor-data/soilmoisture/month/week5`: Fetch week 5 soil moisture data for the current month.
+
+### Year Breakdown Endpoints
+
+- **GET** `/api/sensor-data/soilmoisture/year/:month`: Fetch yearly soil moisture data for a specific month (e.g., `/api/sensor-data/soilmoisture/year/jan` for January).
+- **GET** `/api/sensor-data/temp/year/:month`: Fetch yearly temperature data for a specific month.
+- **GET** `/api/sensor-data/humidity/year/:month`: Fetch yearly humidity data for a specific month.
 
 ## Setup
 

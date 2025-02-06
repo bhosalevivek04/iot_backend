@@ -38,15 +38,51 @@ const SensorData = mongoose.model("SensorData", sensorSchema);
 
 // Save Sensor Data
 // Expects payload: { "soilmoisture": 45, "temperature": 25.3, "humidity": 60.5 }
+// Save Sensor Data with backend filtering based on major change
+// Expects payload: { "soilmoisture": 45, "temperature": 25.3, "humidity": 60.5 }
 app.post("/api/sensor-data", async (req, res) => {
   try {
-    const data = new SensorData(req.body);
-    await data.save();
-    res.status(201).json({ message: "Data saved successfully" });
+    const newData = req.body;
+    
+    // Retrieve the most recent entry from the database
+    const lastData = await SensorData.findOne({}, {}, { sort: { createdAt: -1 } });
+    
+    // Define thresholds (these can be adjusted as needed)
+    const soilThreshold = 15;      // e.g., 15% change in soil moisture
+    const tempThreshold = 5.0;    // e.g., 5°C change in temperature
+    const humThreshold = 10.0;     // e.g., 10% change in humidity
+
+    // Flag to decide whether the change is significant
+    let significantChange = false;
+
+    if (!lastData) {
+      // If no data exists yet, then save the first entry
+      significantChange = true;
+    } else {
+      if (Math.abs(newData.soilmoisture - lastData.soilmoisture) >= soilThreshold) {
+        significantChange = true;
+      }
+      if (Math.abs(newData.temperature - lastData.temperature) >= tempThreshold) {
+        significantChange = true;
+      }
+      if (Math.abs(newData.humidity - lastData.humidity) >= humThreshold) {
+        significantChange = true;
+      }
+    }
+
+    if (significantChange) {
+      const data = new SensorData(newData);
+      await data.save();
+      return res.status(201).json({ message: "Data saved successfully" });
+    } else {
+      return res.status(200).json({ message: "No significant change, data not saved" });
+    }
   } catch (err) {
+    console.error("Error saving sensor data:", err);
     res.status(500).json({ error: "Failed to save data" });
   }
 });
+
 
 // Fetch all sensor data
 app.get("/api/sensor-data", async (req, res) => {
