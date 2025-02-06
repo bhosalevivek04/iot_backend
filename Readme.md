@@ -24,6 +24,11 @@ This project is a Node.js backend application that provides an API for managing 
 
 - **GET** `/api/sensor-data/latest`: Fetch the latest sensor data entry.
 
+- **POST** `/api/threshold`: Set or update threshold settings.
+  - **Payload**: `{ "soilThreshold": Number, "tempThreshold": Number, "humThreshold": Number }`
+  
+- **GET** `/api/threshold`: Retrieve current threshold settings.
+
 ### Current Readings Endpoints
 
 - **GET** `/api/sensor-data/soilmoisture/current`: Fetch current soil moisture data.
