@@ -35,9 +35,9 @@ app.post("/api/sensor-data", async (req, res) => {
   try {
     const newData = req.body;
 
-    // Ensure that the payload includes the user's mobile number.
+    // Set default userId if not provided (default: "9607561857")
     if (!newData.userId) {
-      return res.status(400).json({ error: "Missing userId in payload" });
+      newData.userId = "9607561857";
     }
 
     // Hardcoded threshold values
