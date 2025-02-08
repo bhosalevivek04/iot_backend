@@ -2,11 +2,11 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
+const SensorData = require("./models/sensorDataModel");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 // ------------------------------------------------------
 // MongoDB Connection
 // ------------------------------------------------------
@@ -21,16 +21,16 @@ mongoose
 // ------------------------------------------------------
 // Sensor Schema & Model
 // ------------------------------------------------------
-const sensorSchema = new mongoose.Schema(
-  {
-    soilmoisture: { type: Number },   // Soil Moisture
-    temperature: { type: Number },
-    humidity: { type: Number },
-  },
-  { timestamps: true } // Automatically adds createdAt & updatedAt
-);
+// const sensorSchema = new mongoose.Schema(
+//   {
+//     soilmoisture: { type: Number },   // Soil Moisture
+//     temperature: { type: Number },
+//     humidity: { type: Number },
+//   },
+//   { timestamps: true } // Automatically adds createdAt & updatedAt
+// );
 
-const SensorData = mongoose.model("SensorData", sensorSchema);
+// const SensorData = mongoose.model("SensorData", sensorSchema);
 
 // ------------------------------------------------------
 // Threshold Schema & Model
@@ -53,20 +53,28 @@ const Threshold = mongoose.model("Threshold", thresholdSchema);
 app.post("/api/sensor-data", async (req, res) => {
   try {
     const newData = req.body;
-    
-    // Retrieve the most recent entry from the database
-    const lastData = await SensorData.findOne({}, {}, { sort: { createdAt: -1 } });
-    
-    // Define thresholds (these can be adjusted as needed)
-    const soilThreshold = 0;      // e.g., 0% change in soil moisture
-    const tempThreshold = 0.0;       // e.g., 0°C change in temperature
-    const humThreshold = 0.0;       // e.g., 0% change in humidity
 
-    // Flag to decide whether the change is significant
+    // Ensure that the payload includes the user's mobile number.
+    if (!newData.userId) {
+      return res.status(400).json({ error: "Missing userId in payload" });
+    }
+
+    // Retrieve the most recent sensor entry for THIS user (by mobile)
+    const lastData = await SensorData.findOne(
+      { userId: newData.userId },
+      {},
+      { sort: { createdAt: -1 } }
+    );
+
+    // Define thresholds (these may be hardcoded or retrieved via a settings endpoint)
+    const soilThreshold = 0;  // For example, 0% change
+    const tempThreshold = 0.0; // For example, 0°C change
+    const humThreshold = 0.0;  // For example, 0% change
+
+    // Decide if the change is significant (per user)
     let significantChange = false;
-
     if (!lastData) {
-      // If no data exists yet, then save the first entry
+      // No previous data for this user, so store the new data
       significantChange = true;
     } else {
       if (Math.abs(newData.soilmoisture - lastData.soilmoisture) >= soilThreshold) {
@@ -102,6 +110,29 @@ app.get("/api/sensor-data", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch data" });
   }
 });
+
+// app.get("/api/sensor-data/user/:mobile", async (req, res) => {
+//   try {
+//     const mobile = req.params.mobile;
+//     const data = await SensorData.find({ userId: mobile }).sort({ createdAt: -1 });
+//     res.status(200).json(data);
+//   } catch (err) {
+//     console.error("Error fetching sensor data for user:", err);
+//     res.status(500).json({ error: "Failed to fetch data for user" });
+//   }
+// });
+
+app.get("/api/sensor-data/user/:mobile", async (req, res) => {
+  try {
+    const mobile = req.params.mobile;
+    const latestData = await SensorData.findOne({ userId: mobile }).sort({ createdAt: -1 });
+    res.status(200).json(latestData);
+  } catch (err) {
+    console.error("Error fetching sensor data for user:", err);
+    res.status(500).json({ error: "Failed to fetch data for user" });
+  }
+});
+
 
 // Fetch Latest Sensor Data Entry (returns all latest fields)
 app.get("/api/sensor-data/latest", async (req, res) => {
