@@ -24,13 +24,6 @@ function getDateX(msAgo) {
   return new Date(Date.now() - msAgo);
 }
 
-// =====================================================
-// Sensor Data Endpoints
-// =====================================================
-
-// Save Sensor Data
-// Using constant thresholds (soil: 0, temp: 0.0, humidity: 0.0)
-// This means every new entry is considered significant.
 app.post("/api/sensor-data", async (req, res) => {
   try {
     const newData = req.body;
@@ -39,13 +32,20 @@ app.post("/api/sensor-data", async (req, res) => {
     if (!newData.userId) {
       newData.userId = "9607561857";
     }
+    
+    // Optionally, ensure GPS fields exist (set to null if not provided)
+    if (newData.latitude === undefined) {
+      newData.latitude = null;
+    }
+    if (newData.longitude === undefined) {
+      newData.longitude = null;
+    }
 
-    // Hardcoded threshold values
-    const soilThreshold = 0;   // 0% change
-    const tempThreshold = 0.0; // 0°C change
-    const humThreshold = 0.0;  // 0% change
+    const soilThreshold = 3;   // 3% change
+    const tempThreshold = 3.0; // 3°C change
+    const humThreshold = 3.0;  // 3% change
 
-    // Retrieve the most recent sensor entry for this user (by mobile)
+    // Retrieve the most recent sensor entry for this user (by userId)
     const lastData = await SensorData.findOne(
       { userId: newData.userId },
       {},
