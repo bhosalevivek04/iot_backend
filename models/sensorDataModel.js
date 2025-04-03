@@ -1,4 +1,5 @@
 // models/sensorDataModel.js
+const mongoose = require("mongoose");
 const sensorSchema = new mongoose.Schema(
   {
     soilmoisture: { type: Number },   // Soil Moisture
