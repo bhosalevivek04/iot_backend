@@ -8,26 +8,14 @@ const { getDateX, getMonthWeekRange } = require("./utils/dateUtils");
 
 const app = express();
 
-// ─── CORS ───────────────────────────────────────────────────────────────────
-// Allow requests from *any* origin:
 app.use(cors());
 app.use(express.json());
 
-// ─── MongoDB Connection ─────────────────────────────────────────────────────
 mongoose
   .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.error("MongoDB error:", err));
 
-<<<<<<< HEAD
-// ─── POST sensor data ────────────────────────────────────────────────────────
-=======
-// Helper function: returns a Date object for the time X milliseconds ago
-function getDateX(msAgo) {
-  return new Date(Date.now() - msAgo);
-}
-
->>>>>>> a7cad285ef54773139be90396ff138818afde93d
 app.post("/api/sensor-data", async (req, res) => {
   try {
     const {
@@ -42,16 +30,7 @@ app.post("/api/sensor-data", async (req, res) => {
     if ([soilmoisture, temperature, humidity].some(v => typeof v !== "number" || isNaN(v))) {
       return res.status(400).json({ error: "Invalid sensor data types" });
     }
-    
-    // Optionally, ensure GPS fields exist (set to null if not provided)
-    if (newData.latitude === undefined) {
-      newData.latitude = null;
-    }
-    if (newData.longitude === undefined) {
-      newData.longitude = null;
-    }
 
-<<<<<<< HEAD
     const lastData = await SensorData.findOne({ userId }).sort({ createdAt: -1 });
     const thresholds = {
       soilmoisture: Number(process.env.SOIL_THRESHOLD) || 3,
@@ -64,18 +43,6 @@ app.post("/api/sensor-data", async (req, res) => {
       Math.abs(soilmoisture - lastData.soilmoisture) >= thresholds.soilmoisture ||
       Math.abs(temperature  - lastData.temperature ) >= thresholds.temperature  ||
       Math.abs(humidity     - lastData.humidity    ) >= thresholds.humidity;
-=======
-    const soilThreshold = 3;   // 3% change
-    const tempThreshold = 3.0; // 3°C change
-    const humThreshold = 3.0;  // 3% change
-
-    // Retrieve the most recent sensor entry for this user (by userId)
-    const lastData = await SensorData.findOne(
-      { userId: newData.userId },
-      {},
-      { sort: { createdAt: -1 } }
-    );
->>>>>>> a7cad285ef54773139be90396ff138818afde93d
 
     if (hasSignificantChange) {
       await new SensorData({ userId, soilmoisture, temperature, humidity, latitude, longitude }).save();
@@ -89,7 +56,6 @@ app.post("/api/sensor-data", async (req, res) => {
   }
 });
 
-// ─── GET latest entry for user ───────────────────────────────────────────────
 app.get("/api/sensor-data/user/:userId", async (req, res) => {
   try {
     const data = await SensorData.findOne({ userId: req.params.userId }).sort({ createdAt: -1 });
@@ -101,7 +67,6 @@ app.get("/api/sensor-data/user/:userId", async (req, res) => {
   }
 });
 
-// ─── Dynamic field + period ─────────────────────────────────────────────────
 app.get("/api/sensor-data/:field/:period", async (req, res) => {
   const { field, period } = req.params;
   const valid = ["soilmoisture", "temperature", "humidity"];
@@ -131,7 +96,7 @@ app.get("/api/sensor-data/:field/:period", async (req, res) => {
   }
 });
 
-// ─── Monthly breakdown by week ───────────────────────────────────────────────
+
 app.get("/api/sensor-data/:field/month/week/:weekNumber", async (req, res) => {
   const { field, weekNumber } = req.params;
   const valid = ["soilmoisture", "temperature", "humidity"];
@@ -154,7 +119,6 @@ app.get("/api/sensor-data/:field/month/week/:weekNumber", async (req, res) => {
   }
 });
 
-// ─── Yearly breakdown by month ───────────────────────────────────────────────
 app.get("/api/sensor-data/:field/year/:month", async (req, res) => {
   const { field, month } = req.params;
   const valid  = ["soilmoisture", "temperature", "humidity"];
@@ -181,7 +145,7 @@ app.get("/api/sensor-data/:field/year/:month", async (req, res) => {
   }
 });
 
-// ─── Paginated fetch all ─────────────────────────────────────────────────────
+
 app.get("/api/sensor-data", async (req, res) => {
   const page  = Math.max(parseInt(req.query.page, 10)  || 1, 1);
   const limit = Math.min(parseInt(req.query.limit, 10)|| 100, 1000);
@@ -198,6 +162,5 @@ app.get("/api/sensor-data", async (req, res) => {
   }
 });
 
-// ─── Start server ────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
