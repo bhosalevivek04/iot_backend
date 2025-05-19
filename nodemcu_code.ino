@@ -1,3 +1,5 @@
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <DHT.h>
@@ -6,6 +8,13 @@
 #include <EEPROM.h>
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
+
+// ------------------ GPS Setup ------------------
+#define GPS_RX D2  // GPS Module TX pin connected to D2 (GPIO4)
+#define GPS_TX D1  // GPS Module RX pin connected to D1 (GPIO5)
+SoftwareSerial SerialGPS(GPS_RX, GPS_TX);
+TinyGPSPlus gps;
+float lastLatitude = 0.0, lastLongitude = 0.0;
 
 // ------------------ Sensor & Display Setup ------------------
 #define DHTPIN D4          // DHT11 sensor data pin on D4 (GPIO2)
@@ -18,7 +27,6 @@ DHT dht(DHTPIN, DHTTYPE);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // ------------------ Wi-Fi, Backend & Threshold Config ------------------
-// Combined structure for Wi-Fi credentials and threshold settings
 struct DeviceSettings {
   char ssid[30];
   char password[30];
@@ -38,17 +46,16 @@ const char* backend_url = "https://iot-backend-6oxx.onrender.com/api/sensor-data
 // ------------------ Timing Variables ------------------
 unsigned long previousCycleMillis = 0;
 const unsigned long cycleInterval = 5000;  // 5 seconds for display updates
-int displayState = 0;  // 0: soil moisture, 1: temperature, 2: humidity
+int displayState = 0;  // 0: soil moisture, 1: temperature, 2: humidity, 3: GPS
 
-// Baseline transmission interval (e.g., every 3 minutes)
+// Baseline transmission interval (e.g., every 1 minute)
 unsigned long lastSendTime = 0;
-const unsigned long baselineInterval = 180000; // 180,000 ms = 3 minutes
+const unsigned long baselineInterval = 60000; // 60,000 ms = 1 minute
 
 // Minimum interval between event-driven transmissions (to avoid too frequent sends)
 const unsigned long minIntervalBetweenSends = 30000; // 30 seconds
 
 // ------------------ Global Variables for Threshold Detection ------------------
-// These variables store the last sensor values that were sent to the backend.
 int lastSoilMoisture = -1;     // Initialized to an impossible value
 float lastTemperature = -1000; // Initialized to an unlikely value
 float lastHumidity = -1;       // Initialized to an impossible value
@@ -56,22 +63,19 @@ float lastHumidity = -1;       // Initialized to an impossible value
 // ------------------ Setup Function ------------------
 void setup() {
   Serial.begin(115200);
+  SerialGPS.begin(9600);
+  dht.begin();
 
   // Initialize EEPROM for DeviceSettings
   EEPROM.begin(sizeof(DeviceSettings));
   EEPROM.get(0, deviceSettings);
-
-  // If Wi-Fi credentials are not set, default to empty string and default thresholds
   if (strlen(deviceSettings.ssid) == 0) {
     deviceSettings.ssid[0] = '\0';
     deviceSettings.password[0] = '\0';
-    deviceSettings.soilMoistureThreshold = 5;     // default 5% change
-    deviceSettings.temperatureThreshold = 1.0;    // default 1°C change
-    deviceSettings.humidityThreshold = 3.0;       // default 3% change
+    deviceSettings.soilMoistureThreshold = 1;     
+    deviceSettings.temperatureThreshold = 1.0;    
+    deviceSettings.humidityThreshold = 1.0;       
   }
-
-  // Start DHT sensor
-  dht.begin();
 
   // Initialize I2C for LCD
   Wire.begin(14, 12);
@@ -117,7 +121,7 @@ void setup() {
   }
 
   // Configure web server routes
-  server.on("/", handlePortal);               // Wi-Fi configuration
+  server.on("/", handlePortal);                // Wi-Fi configuration
   server.on("/threshold", handleThresholdPortal); // Threshold configuration
   server.on("/open", handleOpenPortal);
   server.on("/restart", handleRestartForPortal);
@@ -130,10 +134,19 @@ void loop() {
   server.handleClient();
   unsigned long currentMillis = millis();
 
+  // Process GPS data
+  while (SerialGPS.available()) {
+    gps.encode(SerialGPS.read());
+    if (gps.location.isUpdated()) {
+      lastLatitude = gps.location.lat();
+      lastLongitude = gps.location.lng();
+    }
+  }
+
   // Cycle through display states every cycleInterval (5 sec)
   if (currentMillis - previousCycleMillis >= cycleInterval) {
     previousCycleMillis = currentMillis;
-    displayState = (displayState + 1) % 3;
+    displayState = (displayState + 1) % 4;  // Now 4 states: 0-soil, 1-temp, 2-humidity, 3-GPS
     lcd.clear();
     if (displayState == 0) {
       displaySoilMoisture();
@@ -141,33 +154,40 @@ void loop() {
       displayTemperature();
     } else if (displayState == 2) {
       displayHumidity();
+    } else if (displayState == 3) {
+      displayGPS();
     }
+  }
 
-    // Check sensor readings for threshold-based (event-driven) transmission
+  // Event-driven transmission block (if thresholds are nonzero)
+  if (deviceSettings.soilMoistureThreshold > 0 ||
+      deviceSettings.temperatureThreshold > 0 ||
+      deviceSettings.humidityThreshold > 0) {
+
     int rawValue = analogRead(A0);
     int soilMoisture = map(rawValue, 0, 1023, 0, 100);
     float temperature = dht.readTemperature();
     float humidity = dht.readHumidity();
 
     bool immediateSend = false;
-    if (lastSoilMoisture < 0 || abs(soilMoisture - lastSoilMoisture) >= deviceSettings.soilMoistureThreshold) {
+    
+    if (lastSoilMoisture < 0 || abs(soilMoisture - lastSoilMoisture) > deviceSettings.soilMoistureThreshold) {
       immediateSend = true;
     }
-    if (lastTemperature < -500 || fabs(temperature - lastTemperature) >= deviceSettings.temperatureThreshold) {
+    if (lastTemperature < -500 || fabs(temperature - lastTemperature) > deviceSettings.temperatureThreshold) {
       immediateSend = true;
     }
-    if (lastHumidity < 0 || fabs(humidity - lastHumidity) >= deviceSettings.humidityThreshold) {
+    if (lastHumidity < 0 || fabs(humidity - lastHumidity) > deviceSettings.humidityThreshold) {
       immediateSend = true;
     }
 
-    // If a significant change is detected and enough time has passed, send data immediately
     if (immediateSend && (currentMillis - lastSendTime >= minIntervalBetweenSends)) {
       sendDataToBackend(soilMoisture, temperature, humidity);
       lastSendTime = currentMillis;
     }
   }
 
-  // Baseline transmission: if the baseline interval has elapsed, send sensor data regardless of threshold
+  // Baseline transmission: send sensor data every 60 seconds regardless of thresholds
   if (WiFi.status() == WL_CONNECTED && (currentMillis - lastSendTime >= baselineInterval)) {
     int rawValue = analogRead(A0);
     int soilMoisture = map(rawValue, 0, 1023, 0, 100);
@@ -224,9 +244,17 @@ void displayHumidity() {
   lcd.print(" %");
 }
 
+void displayGPS() {
+  lcd.setCursor(0, 0);
+  lcd.print("Lat:");
+  lcd.print(lastLatitude, 6);
+  lcd.setCursor(0, 1);
+  lcd.print("Lng:");
+  lcd.print(lastLongitude, 6);
+}
+
 // ------------------ Backend Data Transmission ------------------
 void sendDataToBackend(int soilMoisture, float temperature, float humidity) {
-  // Validate sensor readings
   if (isnan(temperature) || isnan(humidity)) {
     Serial.println("Invalid sensor reading, skipping transmission.");
     return;
@@ -244,11 +272,12 @@ void sendDataToBackend(int soilMoisture, float temperature, float humidity) {
   http.begin(client, backend_url);
   http.addHeader("Content-Type", "application/json");
 
-  // Create JSON payload with sensor data
-  StaticJsonDocument<200> jsonDoc;
+  StaticJsonDocument<300> jsonDoc;
   jsonDoc["soilmoisture"] = soilMoisture;
   jsonDoc["temperature"] = temperature;
   jsonDoc["humidity"] = humidity;
+  jsonDoc["latitude"] = lastLatitude;
+  jsonDoc["longitude"] = lastLongitude;
 
   String jsonString;
   serializeJson(jsonDoc, jsonString);
@@ -262,21 +291,20 @@ void sendDataToBackend(int soilMoisture, float temperature, float humidity) {
   } else {
     Serial.print("Backend Error Code: ");
     Serial.println(httpResponseCode);
+    delay(2000);
   }
   http.end();
 
-  // Update last sent sensor values
-  lastSoilMoisture = soilMoisture;
-  lastTemperature = temperature;
-  lastHumidity = humidity;
+  if (httpResponseCode > 0) {
+    lastSoilMoisture = soilMoisture;
+    lastTemperature = temperature;
+    lastHumidity = humidity;
+  }
 }
 
 // ------------------ Web Server Handlers ------------------
-
-// Wi-Fi Configuration Portal
 void handlePortal() {
   if (server.method() == HTTP_POST) {
-    // Save Wi-Fi credentials only
     strncpy(deviceSettings.ssid, server.arg("ssid").c_str(), sizeof(deviceSettings.ssid) - 1);
     strncpy(deviceSettings.password, server.arg("password").c_str(), sizeof(deviceSettings.password) - 1);
     deviceSettings.ssid[sizeof(deviceSettings.ssid) - 1] = '\0';
@@ -287,7 +315,7 @@ void handlePortal() {
     delay(5000);
 
     server.send(200, "text/html", "<h1>Wi-Fi credentials saved. Restarting device...</h1>");
-    delay(2000);
+    delay(5000);
     ESP.restart();
   } else {
     server.send(200, "text/html", R"rawliteral(
@@ -318,26 +346,21 @@ void handlePortal() {
   }
 }
 
-// Threshold Configuration Portal (Dedicated Endpoint)
 void handleThresholdPortal() {
   if (server.method() == HTTP_POST) {
-    // Retrieve threshold values from POST parameters
     String soilThresholdStr = server.arg("soilThreshold");
     String tempThresholdStr = server.arg("tempThreshold");
     String humThresholdStr  = server.arg("humThreshold");
 
-    // Convert and store the values in the deviceSettings structure
     deviceSettings.soilMoistureThreshold = soilThresholdStr.toInt();
     deviceSettings.temperatureThreshold = tempThresholdStr.toFloat();
     deviceSettings.humidityThreshold = humThresholdStr.toFloat();
 
-    // Save updated settings to EEPROM
     EEPROM.put(0, deviceSettings);
     EEPROM.commit();
     
     server.send(200, "text/html", "<h1>Threshold settings saved.</h1><p><a href='/'>Return Home</a></p>");
   } else {
-    // Serve the HTML form for threshold configuration
     String html = R"rawliteral(
       <!doctype html>
       <html lang="en">
@@ -368,7 +391,6 @@ void handleThresholdPortal() {
   }
 }
 
-// Open Portal for manual reconfiguration
 void handleOpenPortal() {
   server.send(200, "text/html", R"rawliteral(
     <h1>Open Configuration Portal</h1>
@@ -379,7 +401,6 @@ void handleOpenPortal() {
   )rawliteral");
 }
 
-// Restart for reconfiguring portal
 void handleRestartForPortal() {
   WiFi.mode(WIFI_AP);
   WiFi.softAP("Sensor Setup", "admin123");

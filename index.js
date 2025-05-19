@@ -19,7 +19,15 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.error("MongoDB error:", err));
 
+<<<<<<< HEAD
 // ─── POST sensor data ────────────────────────────────────────────────────────
+=======
+// Helper function: returns a Date object for the time X milliseconds ago
+function getDateX(msAgo) {
+  return new Date(Date.now() - msAgo);
+}
+
+>>>>>>> a7cad285ef54773139be90396ff138818afde93d
 app.post("/api/sensor-data", async (req, res) => {
   try {
     const {
@@ -34,7 +42,16 @@ app.post("/api/sensor-data", async (req, res) => {
     if ([soilmoisture, temperature, humidity].some(v => typeof v !== "number" || isNaN(v))) {
       return res.status(400).json({ error: "Invalid sensor data types" });
     }
+    
+    // Optionally, ensure GPS fields exist (set to null if not provided)
+    if (newData.latitude === undefined) {
+      newData.latitude = null;
+    }
+    if (newData.longitude === undefined) {
+      newData.longitude = null;
+    }
 
+<<<<<<< HEAD
     const lastData = await SensorData.findOne({ userId }).sort({ createdAt: -1 });
     const thresholds = {
       soilmoisture: Number(process.env.SOIL_THRESHOLD) || 3,
@@ -47,6 +64,18 @@ app.post("/api/sensor-data", async (req, res) => {
       Math.abs(soilmoisture - lastData.soilmoisture) >= thresholds.soilmoisture ||
       Math.abs(temperature  - lastData.temperature ) >= thresholds.temperature  ||
       Math.abs(humidity     - lastData.humidity    ) >= thresholds.humidity;
+=======
+    const soilThreshold = 3;   // 3% change
+    const tempThreshold = 3.0; // 3°C change
+    const humThreshold = 3.0;  // 3% change
+
+    // Retrieve the most recent sensor entry for this user (by userId)
+    const lastData = await SensorData.findOne(
+      { userId: newData.userId },
+      {},
+      { sort: { createdAt: -1 } }
+    );
+>>>>>>> a7cad285ef54773139be90396ff138818afde93d
 
     if (hasSignificantChange) {
       await new SensorData({ userId, soilmoisture, temperature, humidity, latitude, longitude }).save();
