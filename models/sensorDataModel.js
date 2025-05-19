@@ -1,15 +1,15 @@
-// models/sensorDataModel.js
 const mongoose = require("mongoose");
 
-const sensorSchema = new mongoose.Schema(
+const sensorDataSchema = new mongoose.Schema(
   {
-    soilmoisture: { type: Number },   // Soil Moisture
-    temperature: { type: Number },
-    humidity: { type: Number },
-    userId: { type: String, required: true } // NEW: Unique mobile number of the farmer
+    userId: { type: String, required: true },
+    soilmoisture: { type: Number, required: true },
+    temperature: { type: Number, required: true },
+    humidity: { type: Number, required: true },
+    latitude: { type: Number, default: null },
+    longitude: { type: Number, default: null },
   },
-  { timestamps: true } // Automatically adds createdAt & updatedAt
+  { timestamps: true }
 );
 
-const SensorData = mongoose.model("SensorData", sensorSchema);
-module.exports = SensorData;
+module.exports = mongoose.model("SensorData", sensorDataSchema);
